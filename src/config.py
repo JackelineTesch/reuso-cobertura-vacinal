@@ -20,18 +20,18 @@ METAS_COBERTURA = {
     "Hepatite B": 0.95,
 }
 
-# Imunobiológicos do calendário básico infantil priorizados na primeira versão
-# (tríplice viral e poliomielite: maior risco epidemiológico de reintrodução
-# de doença se a cobertura cair; BCG e hepatite B: adicionadas para ampliar
-# a cobertura de análise, mesmo com risco de queda historicamente menor)
-IMUNOBIOLOGICOS_PRIORITARIOS = [
-    "Tríplice viral (D1)",
-    "Poliomielite (3ª dose)",
-    "BCG",
-    "Hepatite B",
-]
+# Imunobiológicos priorizados, mapeados para os códigos reais da coluna
+# sg_imunobiologico do dataset OpenDataSUS (descobertos empiricamente —
+# ver reports/decisoes_tecnicas.md). Cada entrada também define qual dose
+# conta como "esquema completo" para fins de cobertura.
+IMUNOBIOLOGICOS_PRIORITARIOS = {
+    "Tríplice viral (D1)": {"sigla": "SCR", "dose": "1ª Dose"},
+    "Poliomielite (3ª dose)": {"sigla": "VIP", "dose": "3ª Dose"},
+    "BCG": {"sigla": "BCG", "dose": None},  # dose única, sem filtro de dose
+    "Hepatite B": {"sigla": "HB", "dose": None},  # dose ao nascer, sem filtro de dose
+}
 
 # Janela de anos para a validação temporal walk-forward do modelo
 # (ajustado depois de descobrir que o OpenDataSUS só cobre 2020+)
-ANO_INICIO_TREINO = 2020
-ANO_MINIMO_TESTE = 2023
+ANO_INICIO_TREINO = 2023
+ANO_MINIMO_TESTE = 2025
