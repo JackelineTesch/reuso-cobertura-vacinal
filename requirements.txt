@@ -1,0 +1,10 @@
+pandas>=2.0
+duckdb>=0.10
+requests>=2.31
+scikit-learn>=1.4
+xgboost>=2.0
+shap>=0.45
+streamlit>=1.35
+plotly>=5.20
+matplotlib>=3.8
+pyyaml>=6.0

@@ -1,0 +1,15 @@
+# Ambiente virtual
+venv/
+__pycache__/
+*.pyc
+
+# Dados (não versionar dados brutos/pesados)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.duckdb
+
+# Configuração local
+.env
+.vscode/
