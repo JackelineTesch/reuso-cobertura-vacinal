@@ -27,8 +27,8 @@ METAS_COBERTURA = {
 IMUNOBIOLOGICOS_PRIORITARIOS = {
     "Tríplice viral (D1)": {"sigla": "SCR", "dose": "1ª Dose"},
     "Poliomielite (3ª dose)": {"sigla": "VIP", "dose": "3ª Dose"},
-    "BCG": {"sigla": "BCG", "dose": None},  # dose única, sem filtro de dose
-    "Hepatite B": {"sigla": "HB", "dose": None},  # dose ao nascer, sem filtro de dose
+    "BCG": {"sigla": "BCG", "dose": "Única"},
+    "Hepatite B": {"sigla": "HB", "dose": "Dose"},
 }
 
 # Janela de anos para a validação temporal walk-forward do modelo

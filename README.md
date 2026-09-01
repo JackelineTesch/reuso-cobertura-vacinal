@@ -54,7 +54,8 @@ reports/             # documentação de metodologia para a submissão no edital
 ## Status
 
 - [x] Estrutura do projeto
-- [ ] Extração: OpenDataSUS (doses PNI)
+- [x] Extração: OpenDataSUS (doses PNI)
+- [x] Cálculo de cobertura vacinal por município/ano/vacina
 - [ ] Extração: CNES (UBS por município)
 - [ ] Extração: IBGE (socioeconômico + malha geográfica)
 - [ ] Engenharia de atributos
