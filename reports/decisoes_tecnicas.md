@@ -95,3 +95,38 @@ Usamos o próprio Censo 2022 (tabela 4714) como aproximação para 2023,
 assumindo que a população não muda significativamente de um ano para o
 outro na maioria dos municípios. Marcado explicitamente no dado
 (`fonte = "censo_2022_aproximacao"`) para transparência.
+
+## 11. Denominador de cobertura: população total → nascidos vivos (SINASC)
+
+Primeira tentativa usou população total do município como denominador,
+gerando coberturas irreais (~1%). Corrigido para usar nascidos vivos
+(SINASC, mesmo padrão de download do PNI: bucket S3 público, dataset
+anual). Limitação aceita: nascidos vivos são contados por município de
+**residência** da mãe, enquanto as doses aplicadas foram agregadas por
+município do **estabelecimento** de saúde — pode distorcer municípios
+pequenos onde famílias se deslocam para vacinar em cidades maiores.
+Não foi reprocessado por causa do custo de tempo (~150GB já processados);
+declarado como limitação conhecida na submissão.
+
+## 12. Cobertura pode ultrapassar 100%
+
+Para vacinas com esquema de múltiplas doses ao longo da infância (ex.:
+Poliomielite 3ª dose), usar nascidos vivos de um único ano-calendário como
+denominador pode gerar cobertura >100% — porque crianças vacinadas num
+ano podem ter nascido no ano anterior. Limitação metodológica conhecida
+(mesmo problema enfrentado por estudos acadêmicos que usam ano-calendário
+em vez de coorte de nascimento), não é erro de cálculo.
+
+## 13. Denominador por ano-calendário vs. coorte de nascimento
+
+O cálculo usa nascidos vivos do mesmo ano-calendário como denominador
+para todas as vacinas, incluindo as aplicadas aos 12 meses (ex.: tríplice
+viral) — reproduzindo a metodologia clássica do PNI. A literatura (ex.:
+BVS/MS, "Denominadores para o cálculo de coberturas vacinais") documenta
+que essa abordagem gera distorções conhecidas: crianças nascidas no fim
+do ano são majoritariamente vacinadas no ano seguinte, inflando a
+cobertura calculada (explica coberturas >100% observadas nos dados).
+A correção ideal exigiria rastrear cada dose até a coorte de nascimento
+real da criança (cruzamento individual PNI×SINASC por paciente), fora do
+escopo deste projeto por restrição de prazo. Declarado como limitação
+metodológica conhecida, consistente com a convenção oficial do PNI.
