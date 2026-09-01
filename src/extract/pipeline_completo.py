@@ -75,7 +75,7 @@ def processar_mes(ano: int, mes: int) -> None:
 
     agregados = []
     leitor = pd.read_csv(
-        caminho_csv, sep=";", encoding="latin1",
+        caminho_csv, sep=";", encoding="utf-8",
         usecols=COLUNAS_NECESSARIAS, chunksize=500_000,
     )
     for bloco in leitor:

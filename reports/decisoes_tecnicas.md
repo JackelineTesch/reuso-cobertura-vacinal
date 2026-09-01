@@ -160,3 +160,15 @@ completa) — aplicados igualmente aos três anos como aproximação. Simplifica
 aceita pelo prazo; o ideal seria ter infraestrutura e PIB por ano, mas o custo
 de buscar séries históricas para essas duas fontes não se justifica dado o
 impacto esperado no modelo comparado ao esforço.
+
+## 17. Modelo escolhido: Random Forest
+
+Comparados Regressão Logística (L2), Random Forest e XGBoost, com
+validação temporal walk-forward (treino: 2024, teste: 2025). Random
+Forest venceu nos dois critérios prioritários: recall da classe "abaixo
+da meta" (0.61 vs. 0.51 da logística e 0.55 do XGBoost) e AUC-ROC (0.820).
+Resultado considerado razoável, não excepcional — esperado dado o limite
+de dados históricos (uma única divisão de validação temporal possível) e
+a natureza multifatorial da hesitação vacinal, que as 6 features
+disponíveis capturam apenas parcialmente. Declarado como limitação
+metodológica na submissão.

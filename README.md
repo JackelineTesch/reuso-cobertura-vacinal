@@ -59,9 +59,9 @@ reports/             # documentação de metodologia para a submissão no edital
 - [x] Cálculo de cobertura vacinal por município/ano/vacina
 - [x] Extração: CNES (UBS + Postos de Saúde por município)
 - [x] Indicador socioeconômico: PIB per capita municipal (substituindo IDHM)
-- [ ] Malha geográfica dos municípios (para o mapa no app Streamlit)
 - [x] Engenharia de atributos
-- [ ] Modelo preditivo (baseline + comparação)
+- [x] Modelo preditivo (baseline + comparação)
 - [ ] Interpretabilidade (SHAP)
+- [ ] Malha geográfica dos municípios (para o mapa no app Streamlit)
 - [ ] App Streamlit
 - [ ] Cadastro da iniciativa em dados.gov.br como caso de reúso
