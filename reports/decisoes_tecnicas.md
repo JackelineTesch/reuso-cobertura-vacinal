@@ -130,3 +130,26 @@ A correção ideal exigiria rastrear cada dose até a coorte de nascimento
 real da criança (cruzamento individual PNI×SINASC por paciente), fora do
 escopo deste projeto por restrição de prazo. Declarado como limitação
 metodológica conhecida, consistente com a convenção oficial do PNI.
+
+## 14. Infraestrutura de saúde: UBS + Postos de Saúde (CNES)
+
+Contamos separadamente TP_UNIDADE 02 (Centro de Saúde/UBS) e 01 (Posto de
+Saúde), além do total combinado — postos de saúde, mesmo sem médico
+permanente, costumam ser a única infraestrutura de vacinação disponível
+em municípios pequenos. Validado por checagem de sanidade: os municípios
+com mais UBS são as grandes capitais (São Paulo: 649, Rio de Janeiro: 396,
+Manaus: 261), consistente com o esperado.
+
+## 15. Indicador socioeconômico: IDHM → PIB per capita municipal
+
+Tentativas de obter IDHM por município falharam: (1) Atlas Brasil
+(atlasbrasil.org.br), a fonte oficial, está fora do ar; (2) o "Radar
+IDHM" da UNDP (fonte alternativa testada) só cobre Brasil/UF/Regiões
+Metropolitanas, sem granularidade municipal — confirmado empiricamente
+e consistente com a literatura, que menciona o Radar como atualização
+intercensitária apenas nesses níveis agregados. Substituído por PIB
+per capita municipal (SIDRA, tabela 5938, variável 37 = PIB total),
+com per capita calculado internamente (PIB ÷ população já extraída),
+para não depender de código de variável não confirmado. Dado: 2023,
+sem necessidade de aproximação de ano.
+

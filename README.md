@@ -55,9 +55,11 @@ reports/             # documentação de metodologia para a submissão no edital
 
 - [x] Estrutura do projeto
 - [x] Extração: OpenDataSUS (doses PNI)
+- [x] Extração: IBGE (população) + SINASC (nascidos vivos)
 - [x] Cálculo de cobertura vacinal por município/ano/vacina
-- [ ] Extração: CNES (UBS por município)
-- [ ] Extração: IBGE (socioeconômico + malha geográfica)
+- [x] Extração: CNES (UBS + Postos de Saúde por município)
+- [x] Indicador socioeconômico: PIB per capita municipal (substituindo IDHM)
+- [ ] Malha geográfica dos municípios (para o mapa no app Streamlit)
 - [ ] Engenharia de atributos
 - [ ] Modelo preditivo (baseline + comparação)
 - [ ] Interpretabilidade (SHAP)
