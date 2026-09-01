@@ -60,7 +60,7 @@ reports/             # documentação de metodologia para a submissão no edital
 - [x] Extração: CNES (UBS + Postos de Saúde por município)
 - [x] Indicador socioeconômico: PIB per capita municipal (substituindo IDHM)
 - [ ] Malha geográfica dos municípios (para o mapa no app Streamlit)
-- [ ] Engenharia de atributos
+- [x] Engenharia de atributos
 - [ ] Modelo preditivo (baseline + comparação)
 - [ ] Interpretabilidade (SHAP)
 - [ ] App Streamlit

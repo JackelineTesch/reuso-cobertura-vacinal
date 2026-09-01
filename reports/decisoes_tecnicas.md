@@ -153,3 +153,10 @@ com per capita calculado internamente (PIB ÷ população já extraída),
 para não depender de código de variável não confirmado. Dado: 2023,
 sem necessidade de aproximação de ano.
 
+## 16. Infraestrutura e PIB tratados como estáticos (não variam por ano)
+
+CNES e PIB per capita só têm um snapshot (não uma série temporal 2023-2025
+completa) — aplicados igualmente aos três anos como aproximação. Simplificação
+aceita pelo prazo; o ideal seria ter infraestrutura e PIB por ano, mas o custo
+de buscar séries históricas para essas duas fontes não se justifica dado o
+impacto esperado no modelo comparado ao esforço.
