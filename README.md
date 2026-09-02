@@ -61,7 +61,8 @@ reports/             # documentação de metodologia para a submissão no edital
 - [x] Indicador socioeconômico: PIB per capita municipal (substituindo IDHM)
 - [x] Engenharia de atributos
 - [x] Modelo preditivo (baseline + comparação)
-- [ ] Interpretabilidade (SHAP)
+- [x] Previsões de risco 2026 + índice de urgência
+- [x] Interpretabilidade (SHAP)
 - [ ] Malha geográfica dos municípios (para o mapa no app Streamlit)
 - [ ] App Streamlit
 - [ ] Cadastro da iniciativa em dados.gov.br como caso de reúso

@@ -7,6 +7,7 @@ o ranking de urgência e o app Streamlit.
 import pandas as pd
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
+import joblib
 
 CAMINHO_DATASET_MODELO = Path("data/processed/dataset_modelo.csv")
 CAMINHO_FEATURES = Path("data/processed/features_cobertura_vacinal.csv")
@@ -43,6 +44,12 @@ def trenar_modelo_final():
         class_weight="balanced"
     )
     modelo.fit(X, y)
+
+    # Salva o modelo treinado, para reaproveitar no SHAP e no app Streamlit
+    # sem precisar retreinar toda vez
+    Path("data/processed/modelo_final.joblib").parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(modelo, "data/processed/modelo_final.joblib")
+    joblib.dump(colunas_features, "data/processed/colunas_features.joblib")
     
     return modelo, colunas_features, colunas_vacina
 
