@@ -93,18 +93,40 @@ if __name__ == "__main__":
     print("Treinando modelo final com todos os dados disponíveis (2024+2025)...")
     modelo, colunas_features, colunas_vacina = trenar_modelo_final()
 
-    print("MMontando os dados de previsão para 2026...")
+    print("Montando os dados de previsão para 2026...")
     dados_2026 = construir_dados_2026(colunas_vacina)
     print(f"Total de linhas de previsão para 2026: {len(dados_2026)}")
 
     X_2026 = dados_2026[colunas_features].fillna(0)
-    dados_2026["probabilidade_risco"] = modelo.predict_proba(X_2026)[:, 1]  # Probabilidade de estar abaixo da meta
+    dados_2026["probabilidade_risco"] = modelo.predict_proba(X_2026)[:, 1]
 
-    dados_2026 = dados_2026.sort_values("probabilidade_risco", ascending=False)
+    # Índice de urgência = risco × população impactada (nascidos vivos)
+    nascidos_vivos = pd.read_csv("data/processed/nascidos_vivos_2023_2025.csv")
+    nascidos_vivos["codigo_municipio_pni"] = nascidos_vivos["codigo_municipio_pni"].astype(str)
+    nascidos_2025 = nascidos_vivos[nascidos_vivos["ano"] == 2025][
+        ["codigo_municipio_pni", "nascidos_vivos"]
+    ]
+
+    dados_2026["codigo_municipio_pni"] = dados_2026["codigo_municipio_pni"].astype(str)
+    dados_2026 = dados_2026.merge(nascidos_2025, on="codigo_municipio_pni", how="left")
+    dados_2026["indice_urgencia"] = (
+        dados_2026["probabilidade_risco"] * dados_2026["nascidos_vivos"].fillna(0)
+    )
+
+    dados_2026 = dados_2026.sort_values("indice_urgencia", ascending=False)
     dados_2026.to_csv(CAMINHO_SAIDA, index=False)
 
     print(f"\nSalvo: {CAMINHO_SAIDA}")
-    print(f"\nDistribuição de risco por vacina (média):")
+    print(f"\nDistribuição de risco previsto por vacina (média):")
     print(dados_2026.groupby("vacina")["probabilidade_risco"].mean())
-    print(f"\nTop 10 municípios com maior risco:")
-    print(dados_2026[["codigo_municipio_pni", "vacina", "probabilidade_risco"]].head(10))
+
+    print(f"\nTop 10 município×vacina por RISCO (probabilidade absoluta):")
+    print(
+        dados_2026.sort_values("probabilidade_risco", ascending=False)
+        [["codigo_municipio_pni", "vacina", "probabilidade_risco"]].head(10)
+    )
+
+    print(f"\nTop 10 município×vacina por ÍNDICE DE URGÊNCIA (risco × população):")
+    print(
+        dados_2026[["codigo_municipio_pni", "vacina", "probabilidade_risco", "nascidos_vivos", "indice_urgencia"]].head(10)
+    )
