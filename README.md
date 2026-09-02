@@ -63,6 +63,6 @@ reports/             # documentação de metodologia para a submissão no edital
 - [x] Modelo preditivo (baseline + comparação)
 - [x] Previsões de risco 2026 + índice de urgência
 - [x] Interpretabilidade (SHAP)
-- [ ] Malha geográfica dos municípios (para o mapa no app Streamlit)
+- [x] Malha geográfica dos municípios (para o mapa no app Streamlit)
 - [ ] App Streamlit
 - [ ] Cadastro da iniciativa em dados.gov.br como caso de reúso
