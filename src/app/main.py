@@ -131,15 +131,26 @@ previsoes = carregar_previsoes()
 malha = carregar_malha_geografica()
 nomes_municipios = carregar_nomes_municipios()
 
-# --- Painel de contexto nacional (visão geral antes dos detalhes) ---
+# --- Estado inicial: caso de maior urgência nacional ---
 
-st.subheader("🎯 Prioridades nacionais")
-st.caption(
-    "Dois rankings, com propósitos diferentes: **urgência** combina risco e "
-    "população impactada (onde agir traz maior efeito); **risco absoluto** "
-    "mostra os casos estatisticamente mais graves, independente do tamanho "
-    "do município."
-)
+if "select_municipio" not in st.session_state:
+    caso_padrao = previsoes.nlargest(1, "indice_urgencia").iloc[0]
+    uf_padrao = nomes_municipios.get(caso_padrao["codigo_municipio_pni"], "").split(" - ")[-1]
+    st.session_state["select_uf"] = uf_padrao
+    st.session_state["select_municipio"] = caso_padrao["codigo_municipio_pni"]
+    st.session_state["select_vacina"] = caso_padrao["vacina"]
+
+
+def selecionar_da_tabela(codigo: str, vacina: str):
+    """Atualiza o estado do app quando uma linha da tabela é clicada —
+    escreve DIRETO nas chaves dos widgets, não em um estado intermediário,
+    porque o Streamlit ignora o parametro 'index' de um widget que ja tem
+    'key' definida."""
+    nome_completo = nomes_municipios.get(codigo, "")
+    uf = nome_completo.split(" - ")[-1] if " - " in nome_completo else "??"
+    st.session_state["select_uf"] = uf
+    st.session_state["select_municipio"] = codigo
+    st.session_state["select_vacina"] = vacina
 
 col_urgencia, col_risco = st.columns(2)
 
@@ -147,36 +158,51 @@ with col_urgencia:
     st.markdown("**Por índice de urgência** *(risco × população impactada)*")
     top5_urgencia = previsoes.nlargest(5, "indice_urgencia")[
         ["codigo_municipio_pni", "vacina", "probabilidade_risco"]
-    ].copy()
+    ].reset_index(drop=True)
     top5_urgencia["Município"] = top5_urgencia["codigo_municipio_pni"].map(nomes_municipios)
     top5_urgencia["Risco"] = top5_urgencia["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
-    st.dataframe(
+
+    evento_urgencia = st.dataframe(
         top5_urgencia[["Município", "vacina", "Risco"]].rename(columns={"vacina": "Vacina"}),
         hide_index=True,
         use_container_width=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="tabela_urgencia",
     )
+    if evento_urgencia.selection.rows:
+        linha_idx = evento_urgencia.selection.rows[0]
+        selecionar_da_tabela(
+            top5_urgencia.loc[linha_idx, "codigo_municipio_pni"],
+            top5_urgencia.loc[linha_idx, "vacina"],
+        )
 
 with col_risco:
     st.markdown("**Por risco absoluto** *(municípios mais graves, qualquer tamanho)*")
     top5_risco = previsoes.nlargest(5, "probabilidade_risco")[
         ["codigo_municipio_pni", "vacina", "probabilidade_risco"]
-    ].copy()
+    ].reset_index(drop=True)
     top5_risco["Município"] = top5_risco["codigo_municipio_pni"].map(nomes_municipios)
     top5_risco["Risco"] = top5_risco["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
-    st.dataframe(
+
+    evento_risco = st.dataframe(
         top5_risco[["Município", "vacina", "Risco"]].rename(columns={"vacina": "Vacina"}),
         hide_index=True,
         use_container_width=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="tabela_risco",
     )
+    if evento_risco.selection.rows:
+        linha_idx = evento_risco.selection.rows[0]
+        selecionar_da_tabela(
+            top5_risco.loc[linha_idx, "codigo_municipio_pni"],
+            top5_risco.loc[linha_idx, "vacina"],
+        )
 
 st.divider()
 
-# --- 3. Widgets de busca ---
-
-# Caso de maior urgência nacional — usado como seleção padrão ao abrir o app
-caso_padrao = previsoes.nlargest(1, "indice_urgencia").iloc[0]
-municipio_padrao = caso_padrao["codigo_municipio_pni"]
-uf_padrao = nomes_municipios.get(municipio_padrao, "").split(" - ")[-1]
+# --- 3. Widgets de busca (agora usando st.session_state como fonte da verdade) ---
 
 codigos_disponiveis = previsoes["codigo_municipio_pni"].unique()
 
@@ -191,33 +217,36 @@ ufs_disponiveis = sorted(set(uf for _, _, uf in opcoes_municipio))
 col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
 
 with col_filtro1:
-    indice_uf_padrao = ufs_disponiveis.index(uf_padrao) if uf_padrao in ufs_disponiveis else 0
-    uf_selecionada = st.selectbox("Estado (UF)", options=ufs_disponiveis, index=indice_uf_padrao)
+    uf_selecionada = st.selectbox("Estado (UF)", options=ufs_disponiveis, key="select_uf")
 
 municipios_da_uf = sorted(
     [(codigo, nome) for codigo, nome, uf in opcoes_municipio if uf == uf_selecionada],
     key=lambda x: x[1],
 )
+codigos_da_uf = [codigo for codigo, nome in municipios_da_uf]
+
+# Se o município salvo no estado nao pertence a UF atual (ex: acabou de
+# trocar a UF manualmente), usa o primeiro município da lista como fallback
+if st.session_state.get("select_municipio") not in codigos_da_uf:
+    st.session_state["select_municipio"] = codigos_da_uf[0] if codigos_da_uf else None
 
 with col_filtro2:
-    codigos_da_uf = [codigo for codigo, nome in municipios_da_uf]
-    indice_municipio_padrao = codigos_da_uf.index(municipio_padrao) if municipio_padrao in codigos_da_uf else 0
     codigo_selecionado = st.selectbox(
         "Município",
         options=codigos_da_uf,
-        index=indice_municipio_padrao,
         format_func=lambda codigo: dict(municipios_da_uf).get(codigo, codigo),
+        key="select_municipio",
     )
 
-vacinas_do_municipio = previsoes[
+vacinas_do_municipio = sorted(previsoes[
     previsoes["codigo_municipio_pni"] == codigo_selecionado
-]["vacina"].unique()
+]["vacina"].unique())
+
+if st.session_state.get("select_vacina") not in vacinas_do_municipio:
+    st.session_state["select_vacina"] = vacinas_do_municipio[0] if vacinas_do_municipio else None
 
 with col_filtro3:
-    vacina_padrao = caso_padrao["vacina"]
-    lista_vacinas = sorted(vacinas_do_municipio)
-    indice_vacina_padrao = lista_vacinas.index(vacina_padrao) if vacina_padrao in lista_vacinas else 0
-    vacina_selecionada = st.selectbox("Vacina", options=lista_vacinas, index=indice_vacina_padrao)
+    vacina_selecionada = st.selectbox("Vacina", options=vacinas_do_municipio, key="select_vacina")
 
 # --- 4. Layout principal: esquerda (score + explicacao) | direita (mapa) ---
 
