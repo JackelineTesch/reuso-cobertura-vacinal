@@ -1,7 +1,10 @@
 """
-APP Stremlit - Radar de Risco Vacinal
-"""
+App Streamlit - Radar de Risco Vacinal.
 
+Layout: filtros + score + explicacao SHAP na coluna esquerda (mais estreita),
+mapa na coluna direita (mais larga) - evita rolagem vertical em telas normais.
+O mapa centraliza e da zoom automatico no estado (UF) selecionado no filtro.
+"""
 import sys
 from pathlib import Path
 
@@ -10,64 +13,172 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 import streamlit as st
 import pandas as pd
 import json
+import plotly.express as px
 
-# --- Configuração da página ---
-# Primeira chamada Streamlit do arquivo
+from src.models.explicar_shap import carregar_explainer, explicar_caso
 
+# --- 1. Configuracao da pagina ---
 st.set_page_config(
     page_title="Radar de Risco Vacinal",
     page_icon="💉",
-    layout="wide", # usa a largura inteira da tela, melhor para mapas/tabelas
+    layout="wide",
 )
 
-# --- Carregamento de dados, com cache ---
+
+# --- 2. Carregamento de dados, com cache ---
 
 @st.cache_data
 def carregar_previsoes() -> pd.DataFrame:
-    """ Cache de Dados: o Streamlit guarda o resultado e só recalcula se
-    o arquivo de origem mudar (ou se limpar o cache manualmente)."""
     df = pd.read_csv("data/processed/previsoes_risco_2026.csv")
     df["codigo_municipio_pni"] = df["codigo_municipio_pni"].astype(str)
     return df
+
 
 @st.cache_data
 def carregar_malha_geografica() -> dict:
     with open("data/processed/malha_municipios_brasil.geojson", encoding="utf-8") as f:
         return json.load(f)
 
-# --- Corpo principal do app ---
-
-st.title("💉 Radar de Risco Vacinal")
-st.markdown(
-    "Score preditivo de risco de queda na cobertura vacinal infantil,"
-    " por município e vacina - 2º Concurso de Reúso de Dados Abertos da CGU"
-)
-
-previsoes = carregar_previsoes()
-malha = carregar_malha_geografica()
-
-# --- 3. Widgets de busca ---
-
-st.divider()
-st.subheader("Consultar um município")
-
 
 @st.cache_data
 def carregar_nomes_municipios() -> dict:
-    """Usa o arquivo de população do IBGE, que já tem nome + código PNI
-    juntos — evita o problema de converter 6↔7 dígitos manualmente."""
     df = pd.read_csv("data/raw/ibge_populacao_2023_2025.csv")
     df["codigo_municipio_pni"] = df["codigo_municipio_pni"].astype(str)
-    # Remove duplicatas (o arquivo tem uma linha por ano, mas o nome é o mesmo)
     df_unico = df.drop_duplicates(subset="codigo_municipio_pni")
     return dict(zip(df_unico["codigo_municipio_pni"], df_unico["nome_municipio"]))
 
 
-nomes_municipios = carregar_nomes_municipios()
-codigos_disponiveis = previsoes["codigo_municipio_pni"].unique()
+@st.cache_data
+def montar_correspondencia_codigos(_malha: dict) -> dict:
+    return {
+        feature["properties"]["codarea"][:6]: feature["properties"]["codarea"]
+        for feature in _malha["features"]
+    }
 
-# Para fazer uma divisão de municípios por estado, extraímos o estado do próprio nome do município
-# que extraímos, sem precisa de outra fonte de dados
+
+@st.cache_data
+def calcular_bbox_por_uf(_malha: dict) -> dict:
+    """
+    Calcula a caixa delimitadora (bounding box) de cada UF, a partir dos
+    poligonos dos municipios - usado para centralizar e dar zoom no mapa
+    quando o usuario troca de estado no filtro.
+    """
+    bboxes = {}
+    for feature in _malha["features"]:
+        codarea = feature["properties"]["codarea"]
+        uf_codigo = codarea[:2]  # 2 primeiros digitos = codigo da UF no IBGE
+
+        geometria = feature["geometry"]
+        coords_lista = geometria["coordinates"]
+
+        # Poligonos podem ser "Polygon" (lista simples) ou "MultiPolygon"
+        # (lista de listas) - achatamos tudo em uma lista unica de pontos
+        pontos = []
+        if geometria["type"] == "Polygon":
+            for anel in coords_lista:
+                pontos.extend(anel)
+        elif geometria["type"] == "MultiPolygon":
+            for poligono in coords_lista:
+                for anel in poligono:
+                    pontos.extend(anel)
+
+        for lon, lat in pontos:
+            if uf_codigo not in bboxes:
+                bboxes[uf_codigo] = {"min_lat": lat, "max_lat": lat, "min_lon": lon, "max_lon": lon}
+            else:
+                b = bboxes[uf_codigo]
+                b["min_lat"] = min(b["min_lat"], lat)
+                b["max_lat"] = max(b["max_lat"], lat)
+                b["min_lon"] = min(b["min_lon"], lon)
+                b["max_lon"] = max(b["max_lon"], lon)
+
+    return bboxes
+
+
+def calcular_centro_e_zoom(bbox: dict) -> tuple[dict, float]:
+    """Deriva o centro e um nivel de zoom aproximado a partir de uma bbox."""
+    centro = {
+        "lat": (bbox["min_lat"] + bbox["max_lat"]) / 2,
+        "lon": (bbox["min_lon"] + bbox["max_lon"]) / 2,
+    }
+    extensao = max(bbox["max_lat"] - bbox["min_lat"], bbox["max_lon"] - bbox["min_lon"])
+
+    # Heuristica simples: quanto maior a extensao geografica do estado,
+    # menor o zoom necessario para enxergar ele inteiro
+    if extensao > 20:
+        zoom = 3.5
+    elif extensao > 10:
+        zoom = 4.5
+    elif extensao > 5:
+        zoom = 5.5
+    elif extensao > 2:
+        zoom = 6.5
+    else:
+        zoom = 7.5
+
+    return centro, zoom
+
+
+# --- Corpo principal ---
+
+st.title("💉 Radar de Risco Vacinal")
+st.caption(
+    "Score preditivo de risco de queda na cobertura vacinal infantil, por município e vacina "
+    "— 2º Concurso de Reúso de Dados Abertos da CGU."
+)
+
+previsoes = carregar_previsoes()
+malha = carregar_malha_geografica()
+nomes_municipios = carregar_nomes_municipios()
+
+# --- Painel de contexto nacional (visão geral antes dos detalhes) ---
+
+st.subheader("🎯 Prioridades nacionais")
+st.caption(
+    "Dois rankings, com propósitos diferentes: **urgência** combina risco e "
+    "população impactada (onde agir traz maior efeito); **risco absoluto** "
+    "mostra os casos estatisticamente mais graves, independente do tamanho "
+    "do município."
+)
+
+col_urgencia, col_risco = st.columns(2)
+
+with col_urgencia:
+    st.markdown("**Por índice de urgência** *(risco × população impactada)*")
+    top5_urgencia = previsoes.nlargest(5, "indice_urgencia")[
+        ["codigo_municipio_pni", "vacina", "probabilidade_risco"]
+    ].copy()
+    top5_urgencia["Município"] = top5_urgencia["codigo_municipio_pni"].map(nomes_municipios)
+    top5_urgencia["Risco"] = top5_urgencia["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
+    st.dataframe(
+        top5_urgencia[["Município", "vacina", "Risco"]].rename(columns={"vacina": "Vacina"}),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+with col_risco:
+    st.markdown("**Por risco absoluto** *(municípios mais graves, qualquer tamanho)*")
+    top5_risco = previsoes.nlargest(5, "probabilidade_risco")[
+        ["codigo_municipio_pni", "vacina", "probabilidade_risco"]
+    ].copy()
+    top5_risco["Município"] = top5_risco["codigo_municipio_pni"].map(nomes_municipios)
+    top5_risco["Risco"] = top5_risco["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
+    st.dataframe(
+        top5_risco[["Município", "vacina", "Risco"]].rename(columns={"vacina": "Vacina"}),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+st.divider()
+
+# --- 3. Widgets de busca ---
+
+# Caso de maior urgência nacional — usado como seleção padrão ao abrir o app
+caso_padrao = previsoes.nlargest(1, "indice_urgencia").iloc[0]
+municipio_padrao = caso_padrao["codigo_municipio_pni"]
+uf_padrao = nomes_municipios.get(municipio_padrao, "").split(" - ")[-1]
+
+codigos_disponiveis = previsoes["codigo_municipio_pni"].unique()
 
 opcoes_municipio = []
 for codigo in codigos_disponiveis:
@@ -77,61 +188,53 @@ for codigo in codigos_disponiveis:
 
 ufs_disponiveis = sorted(set(uf for _, _, uf in opcoes_municipio))
 
-col1, col2, col3 = st.columns(3)
+col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
 
-with col1:
-    uf_selecionada = st.selectbox("Estado (UF)", options=ufs_disponiveis)
+with col_filtro1:
+    indice_uf_padrao = ufs_disponiveis.index(uf_padrao) if uf_padrao in ufs_disponiveis else 0
+    uf_selecionada = st.selectbox("Estado (UF)", options=ufs_disponiveis, index=indice_uf_padrao)
 
 municipios_da_uf = sorted(
     [(codigo, nome) for codigo, nome, uf in opcoes_municipio if uf == uf_selecionada],
     key=lambda x: x[1],
 )
 
-with col2:
+with col_filtro2:
+    codigos_da_uf = [codigo for codigo, nome in municipios_da_uf]
+    indice_municipio_padrao = codigos_da_uf.index(municipio_padrao) if municipio_padrao in codigos_da_uf else 0
     codigo_selecionado = st.selectbox(
         "Município",
-        options=[codigo for codigo, nome in municipios_da_uf],
+        options=codigos_da_uf,
+        index=indice_municipio_padrao,
         format_func=lambda codigo: dict(municipios_da_uf).get(codigo, codigo),
     )
-
 
 vacinas_do_municipio = previsoes[
     previsoes["codigo_municipio_pni"] == codigo_selecionado
 ]["vacina"].unique()
 
-with col3:
-    vacina_selecionada = st.selectbox("Vacina", options=sorted(vacinas_do_municipio))
+with col_filtro3:
+    vacina_padrao = caso_padrao["vacina"]
+    lista_vacinas = sorted(vacinas_do_municipio)
+    indice_vacina_padrao = lista_vacinas.index(vacina_padrao) if vacina_padrao in lista_vacinas else 0
+    vacina_selecionada = st.selectbox("Vacina", options=lista_vacinas, index=indice_vacina_padrao)
 
-st.write(f"Você selecionou: município `{codigo_selecionado}` ({nomes_municipios.get(codigo_selecionado, '?')}), vacina `{vacina_selecionada}`")
+# --- 4. Layout principal: esquerda (score + explicacao) | direita (mapa) ---
 
-# --- Resultado: Score de risco + explicação do SHAP ---
+col_esquerda, col_direita = st.columns([1, 2])
 
-st.divider()
+with col_esquerda:
+    linha_selecionada = previsoes[
+        (previsoes["codigo_municipio_pni"] == codigo_selecionado) &
+        (previsoes["vacina"] == vacina_selecionada)
+    ]
 
-from src.models.explicar_shap import carregar_explainer, explicar_caso
+    if linha_selecionada.empty:
+        st.warning("Sem previsão disponível para essa combinação de município e vacina.")
+    else:
+        linha = linha_selecionada.iloc[0]
+        risco = linha["probabilidade_risco"]
 
-
-@st.cache_resource
-def obter_explainer():
-    """Cache de RECURSO: carrega o modelo e monta o SHAP explainer UMA VEZ
-    por sessão, não a cada clique — evita recarregar as 200 árvores toda
-    hora que o usuário troca de município."""
-    return carregar_explainer()
-
-
-linha_selecionada = previsoes[
-    (previsoes["codigo_municipio_pni"] == codigo_selecionado) &
-    (previsoes["vacina"] == vacina_selecionada)
-]
-
-if linha_selecionada.empty:
-    st.warning("Sem previsão disponível para essa combinação de município e vacina.")
-else:
-    linha = linha_selecionada.iloc[0]
-    risco = linha["probabilidade_risco"]
-
-    col_score, col_urgencia = st.columns(2)
-    with col_score:
         st.metric(
             "Risco previsto (2026)",
             f"{risco:.1%}",
@@ -143,57 +246,67 @@ else:
                 "para priorização, não como certeza absoluta."
             ),
         )
-    with col_urgencia:
         valor_formatado = f"{linha['nascidos_vivos']:,.0f}".replace(",", ".")
         st.metric("Nascidos vivos (2025)", valor_formatado)
 
-    st.subheader("Por que esse score?")
-    modelo, explainer, colunas_features = obter_explainer()
-    explicacao = explicar_caso(explainer, colunas_features, linha, top_n=5)
+        st.subheader("Por que esse score?")
 
-    for item in explicacao:
-        emoji = "🔺" if item["direcao"] == "aumenta" else "🔻"
-        st.write(f"{emoji} **{item['nome_exibicao']}**: {item['direcao']} o risco em {abs(item['valor']):.3f}")
+        @st.cache_resource
+        def obter_explainer():
+            return carregar_explainer()
 
+        with st.spinner("Calculando explicação..."):
+            modelo, explainer, colunas_features = obter_explainer()
+            explicacao = explicar_caso(explainer, colunas_features, linha, top_n=5)
 
-# --- 5. Mapa de risco ---
+        for item in explicacao:
+            emoji = "🔺" if item["direcao"] == "aumenta" else "🔻"
+            st.write(f"{emoji} **{item['nome_exibicao']}**: {item['direcao']} o risco em {abs(item['valor']):.3f}")
 
-st.divider()
-st.subheader(f"Mapa de risco — {vacina_selecionada}")
+with col_direita:
+    st.subheader(f"Mapa de risco — {vacina_selecionada}")
 
-import plotly.express as px
+    correspondencia = montar_correspondencia_codigos(malha)
+    bboxes_uf = calcular_bbox_por_uf(malha)
 
+    # Descobre o codigo de UF (2 digitos) a partir do municipio selecionado,
+    # para buscar a bbox correta e centralizar o mapa nesse estado
+    codigo_uf_selecionada = codigo_selecionado[:2]
+    bbox_selecionada = bboxes_uf.get(codigo_uf_selecionada)
 
-@st.cache_data
-def montar_correspondencia_codigos(_malha: dict) -> dict:
-    """Mapeia codigo_municipio_pni (6 dígitos) -> codarea (7 dígitos),
-    construído a partir da própria malha geográfica."""
-    return {
-        feature["properties"]["codarea"][:6]: feature["properties"]["codarea"]
-        for feature in _malha["features"]
-    }
+    if bbox_selecionada:
+        centro, zoom = calcular_centro_e_zoom(bbox_selecionada)
+    else:
+        centro, zoom = {"lat": -14.2, "lon": -51.9}, 3.0
 
+    df_mapa = previsoes[previsoes["vacina"] == vacina_selecionada].copy()
+    df_mapa["codarea"] = df_mapa["codigo_municipio_pni"].map(correspondencia)
+    df_mapa = df_mapa.dropna(subset=["codarea"])
+    df_mapa["nome_municipio"] = df_mapa["codigo_municipio_pni"].map(nomes_municipios)
 
-correspondencia = montar_correspondencia_codigos(malha)
+    fig = px.choropleth_map(
+        df_mapa,
+        geojson=malha,
+        locations="codarea",
+        featureidkey="properties.codarea",
+        color="probabilidade_risco",
+        color_continuous_scale=["#e0e0e0", "#f4a261", "#e63946", "#9d0208"],
+        range_color=(0, 1),
+        map_style="carto-darkmatter",
+        zoom=zoom,
+        center=centro,
+        opacity=0.7,
+        labels={"probabilidade_risco": "Risco previsto"},
+        hover_name="nome_municipio",
+        hover_data={"codarea": False},
+    )
+    fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
 
-df_mapa = previsoes[previsoes["vacina"] == vacina_selecionada].copy()
-df_mapa["codarea"] = df_mapa["codigo_municipio_pni"].map(correspondencia)
-df_mapa = df_mapa.dropna(subset=["codarea"])
+    # scrollZoom=True permite dar zoom com a roda do mouse direto no mapa
+    # (sem isso, o Streamlit intercepta o scroll para rolar a pagina)
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
 
-fig = px.choropleth_map(
-    df_mapa,
-    geojson=malha,
-    locations="codarea",
-    featureidkey="properties.codarea",
-    color="probabilidade_risco",
-    color_continuous_scale="Reds",
-    range_color=(0, 1),
-    map_style="carto-darkmatter",
-    zoom=3,
-    center={"lat": -14.2, "lon": -51.9},
-    opacity=0.7,
-    labels={"probabilidade_risco": "Risco previsto"},
-)
-fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=600)
-
-st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "💡 Use a roda do mouse para dar zoom, ou arraste para navegar. "
+        "O mapa centraliza automaticamente no estado selecionado no filtro acima."
+    )
