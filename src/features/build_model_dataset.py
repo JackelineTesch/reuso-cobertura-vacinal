@@ -46,13 +46,13 @@ def construir_dataset_modelo() -> pd.DataFrame:
                 "num_postos_saude": grupo.loc[ano_anterior, "num_postos_saude"],
                 "pib_per_capita": grupo.loc[ano_anterior, "pib_per_capita"],
                 "meta": grupo.loc[ano_anterior, "meta"],
-                # Alvo: o município ficou abaixo da meta NO ANO QUE QUEREMOS PREVER
                 "abaixo_meta_alvo": grupo.loc[ano_alvo, "abaixo_meta"] if ano_alvo in grupo.index else None,
+                "cobertura_alvo": grupo.loc[ano_alvo, "cobertura"] if ano_alvo in grupo.index else None,  # NOVO
             })
 
     resultado = pd.DataFrame(linhas_modelo)
-    resultado = resultado.dropna(subset=["abaixo_meta_alvo"])  # Remove linhas sem alvo definido
-    resultado["abaixo_meta_alvo"] = resultado["abaixo_meta_alvo"].astype(bool)  # Converte para 0/1
+    resultado = resultado.dropna(subset=["abaixo_meta_alvo", "cobertura_alvo"])  # adiciona cobertura_alvo aqui
+    resultado["abaixo_meta_alvo"] = resultado["abaixo_meta_alvo"].astype(bool)
     return resultado
 
 if __name__ == "__main__":

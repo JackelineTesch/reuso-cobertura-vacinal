@@ -172,3 +172,31 @@ de dados históricos (uma única divisão de validação temporal possível) e
 a natureza multifatorial da hesitação vacinal, que as 6 features
 disponíveis capturam apenas parcialmente. Declarado como limitação
 metodológica na submissão.
+
+## 18. SHAP confirma "cobertura no ano anterior" como fator dominante
+
+Nos 5 casos de maior urgência analisados, "cobertura no ano anterior" foi
+consistentemente o fator de maior peso na previsão de risco — resultado
+esperado e que reforça a validade do modelo. "Número de UBS" apareceu com
+direção inconsistente entre casos (ora reduz, ora aumenta o risco), o que
+pode indicar correlação com outra variável não capturada (ex.: densidade
+populacional) — vale nota como limitação/hipótese para trabalho futuro.
+
+## 19. Malha geográfica via API oficial do IBGE
+
+Contornos municipais obtidos via API de Malhas Geográficas do IBGE
+(servicodados.ibge.gov.br/api/v3/malhas), uma chamada por estado com o
+parâmetro intrarregiao=municipio, trazendo todos os municípios daquele
+estado de uma vez — evita 5.570 chamadas individuais. Total confirmado:
+5.570 municípios, batendo com o total oficial do Brasil.
+
+## 20. Modelo de regressão para estimar crianças sem vacina (déficit real)
+
+Além do modelo de classificação (abaixo/acima da meta), treinamos um
+RandomForestRegressor prevendo o valor numérico de cobertura, permitindo
+calcular déficit = meta - cobertura prevista, e crianças_sem_vacina =
+déficit × nascidos vivos. Cobertura-alvo foi limitada (clip) em 100% antes
+do treino, removendo distorção conhecida (ano-calendário vs. coorte de
+nascimento — ver decisão #13), o que reduziu o erro médio (MAE) de 20,5%
+para 9,4 pontos percentuais. Essa margem de erro deve ser comunicada ao
+lado do número no app, para não passar falsa precisão.

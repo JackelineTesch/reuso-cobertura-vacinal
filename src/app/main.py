@@ -118,6 +118,17 @@ def calcular_centro_e_zoom(bbox: dict) -> tuple[dict, float]:
 
     return centro, zoom
 
+def classificar_risco(probabilidade: float) -> tuple[str, str]:
+    """Retorna (rotulo textual, emoji) para o nivel de risco -- o emoji
+    reforca a informacao por forma/simbolo, nao so por cor, ajudando
+    pessoas com daltonismo a distinguir os niveis."""
+    if probabilidade < 0.40:
+        return "Baixo", "🟢"
+    elif probabilidade < 0.70:
+        return "Médio", "🟡"
+    else:
+        return "Alto", "🔴"
+
 
 # --- Corpo principal ---
 
@@ -157,18 +168,30 @@ col_urgencia, col_risco = st.columns(2)
 with col_urgencia:
     st.markdown("**Por índice de urgência** *(risco × população impactada)*")
     top5_urgencia = previsoes.nlargest(5, "indice_urgencia")[
-        ["codigo_municipio_pni", "vacina", "probabilidade_risco"]
+        ["codigo_municipio_pni", "vacina", "probabilidade_risco", "indice_urgencia"]
     ].reset_index(drop=True)
     top5_urgencia["Município"] = top5_urgencia["codigo_municipio_pni"].map(nomes_municipios)
-    top5_urgencia["Risco"] = top5_urgencia["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
+    top5_urgencia["Risco individual"] = top5_urgencia["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
+
+    maior_valor_nacional = previsoes["indice_urgencia"].max()
 
     evento_urgencia = st.dataframe(
-        top5_urgencia[["Município", "vacina", "Risco"]].rename(columns={"vacina": "Vacina"}),
+        top5_urgencia[["Município", "vacina", "Risco individual", "indice_urgencia"]].rename(
+            columns={"vacina": "Vacina", "indice_urgencia": "Crianças em risco (estimado)"}
+        ),
         hide_index=True,
         use_container_width=True,
         on_select="rerun",
         selection_mode="single-row",
         key="tabela_urgencia",
+        column_config={
+            "Crianças em risco (estimado)": st.column_config.ProgressColumn(
+                "Crianças em risco (estimado)",
+                min_value=0,
+                max_value=maior_valor_nacional,
+                format="%d",
+            )
+        },
     )
     if evento_urgencia.selection.rows:
         linha_idx = evento_urgencia.selection.rows[0]
@@ -177,13 +200,22 @@ with col_urgencia:
             top5_urgencia.loc[linha_idx, "vacina"],
         )
 
+st.caption(
+    "💡 **Crianças em risco (estimado)** = risco individual × número de nascidos vivos — "
+    "uma forma de ponderar a população pelo score de risco do município (não é uma contagem "
+    "exata garantida, já que o modelo classifica o município como um todo, não cada criança "
+    "individualmente). É por isso que municípios com risco individual menor podem aparecer à "
+    "frente de outros com risco maior: o volume populacional pondera o resultado."
+)
+
 with col_risco:
     st.markdown("**Por risco absoluto** *(municípios mais graves, qualquer tamanho)*")
     top5_risco = previsoes.nlargest(5, "probabilidade_risco")[
         ["codigo_municipio_pni", "vacina", "probabilidade_risco"]
     ].reset_index(drop=True)
     top5_risco["Município"] = top5_risco["codigo_municipio_pni"].map(nomes_municipios)
-    top5_risco["Risco"] = top5_risco["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
+    top5_risco["Risco"] = top5_risco["probabilidade_risco"].apply(
+        lambda x: f"{classificar_risco(x)[1]} {x:.0%}")
 
     evento_risco = st.dataframe(
         top5_risco[["Município", "vacina", "Risco"]].rename(columns={"vacina": "Vacina"}),
@@ -264,15 +296,17 @@ with col_esquerda:
         linha = linha_selecionada.iloc[0]
         risco = linha["probabilidade_risco"]
 
+        rotulo_risco, emoji_risco = classificar_risco(risco)
         st.metric(
             "Risco previsto (2026)",
-            f"{risco:.1%}",
+            f"{emoji_risco} {risco:.1%} — {rotulo_risco}",
             help=(
                 "Probabilidade estimada pelo modelo de que este município ficará "
                 "abaixo da meta de cobertura em 2026, baseada em padrões históricos "
                 "de cobertura, infraestrutura e características socioeconômicas. "
                 "O modelo tem taxa de acerto de ~82% (AUC-ROC) — use como indicativo "
-                "para priorização, não como certeza absoluta."
+                "para priorização, não como certeza absoluta.\n\n"
+                "Classificação: Baixo (<40%), Médio (40-70%), Alto (>70%)."
             ),
         )
         valor_formatado = f"{linha['nascidos_vivos']:,.0f}".replace(",", ".")
