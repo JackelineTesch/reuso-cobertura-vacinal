@@ -2,6 +2,11 @@
 APP Stremlit - Radar de Risco Vacinal
 """
 
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 import streamlit as st
 import pandas as pd
 import json
@@ -98,3 +103,97 @@ with col3:
     vacina_selecionada = st.selectbox("Vacina", options=sorted(vacinas_do_municipio))
 
 st.write(f"Você selecionou: município `{codigo_selecionado}` ({nomes_municipios.get(codigo_selecionado, '?')}), vacina `{vacina_selecionada}`")
+
+# --- Resultado: Score de risco + explicação do SHAP ---
+
+st.divider()
+
+from src.models.explicar_shap import carregar_explainer, explicar_caso
+
+
+@st.cache_resource
+def obter_explainer():
+    """Cache de RECURSO: carrega o modelo e monta o SHAP explainer UMA VEZ
+    por sessão, não a cada clique — evita recarregar as 200 árvores toda
+    hora que o usuário troca de município."""
+    return carregar_explainer()
+
+
+linha_selecionada = previsoes[
+    (previsoes["codigo_municipio_pni"] == codigo_selecionado) &
+    (previsoes["vacina"] == vacina_selecionada)
+]
+
+if linha_selecionada.empty:
+    st.warning("Sem previsão disponível para essa combinação de município e vacina.")
+else:
+    linha = linha_selecionada.iloc[0]
+    risco = linha["probabilidade_risco"]
+
+    col_score, col_urgencia = st.columns(2)
+    with col_score:
+        st.metric(
+            "Risco previsto (2026)",
+            f"{risco:.1%}",
+            help=(
+                "Probabilidade estimada pelo modelo de que este município ficará "
+                "abaixo da meta de cobertura em 2026, baseada em padrões históricos "
+                "de cobertura, infraestrutura e características socioeconômicas. "
+                "O modelo tem taxa de acerto de ~82% (AUC-ROC) — use como indicativo "
+                "para priorização, não como certeza absoluta."
+            ),
+        )
+    with col_urgencia:
+        valor_formatado = f"{linha['nascidos_vivos']:,.0f}".replace(",", ".")
+        st.metric("Nascidos vivos (2025)", valor_formatado)
+
+    st.subheader("Por que esse score?")
+    modelo, explainer, colunas_features = obter_explainer()
+    explicacao = explicar_caso(explainer, colunas_features, linha, top_n=5)
+
+    for item in explicacao:
+        emoji = "🔺" if item["direcao"] == "aumenta" else "🔻"
+        st.write(f"{emoji} **{item['nome_exibicao']}**: {item['direcao']} o risco em {abs(item['valor']):.3f}")
+
+
+# --- 5. Mapa de risco ---
+
+st.divider()
+st.subheader(f"Mapa de risco — {vacina_selecionada}")
+
+import plotly.express as px
+
+
+@st.cache_data
+def montar_correspondencia_codigos(_malha: dict) -> dict:
+    """Mapeia codigo_municipio_pni (6 dígitos) -> codarea (7 dígitos),
+    construído a partir da própria malha geográfica."""
+    return {
+        feature["properties"]["codarea"][:6]: feature["properties"]["codarea"]
+        for feature in _malha["features"]
+    }
+
+
+correspondencia = montar_correspondencia_codigos(malha)
+
+df_mapa = previsoes[previsoes["vacina"] == vacina_selecionada].copy()
+df_mapa["codarea"] = df_mapa["codigo_municipio_pni"].map(correspondencia)
+df_mapa = df_mapa.dropna(subset=["codarea"])
+
+fig = px.choropleth_map(
+    df_mapa,
+    geojson=malha,
+    locations="codarea",
+    featureidkey="properties.codarea",
+    color="probabilidade_risco",
+    color_continuous_scale="Reds",
+    range_color=(0, 1),
+    map_style="carto-darkmatter",
+    zoom=3,
+    center={"lat": -14.2, "lon": -51.9},
+    opacity=0.7,
+    labels={"probabilidade_risco": "Risco previsto"},
+)
+fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=600)
+
+st.plotly_chart(fig, use_container_width=True)

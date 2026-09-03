@@ -50,14 +50,21 @@ def explicar_caso(explainer, colunas_features, linha_dados: pd.Series, top_n: in
         valores_risco = valores_shap[0, :, 1]
 
     contribuicoes = pd.Series(valores_risco, index=colunas_features)
+
+    # Remove as colunas de vacina (one-hot) da explicação exibida — elas
+    # refletem diferenças nacionais entre vacinas, não características
+    # específicas do município, então não são um "motivo" acionável
+    contribuicoes = contribuicoes[~contribuicoes.index.str.startswith("vacina_")]
+
     contribuicoes = contribuicoes[contribuicoes.abs() > 0.001]
     contribuicoes = contribuicoes.sort_values(key=abs, ascending=False)
 
     resultado = []
     for feature, valor in contribuicoes.head(top_n).items():
+        nome_exibicao = NOMES_AMIGAVEIS.get(feature, feature)
         resultado.append({
             "feature": feature,
-            "nome_exibicao": NOMES_AMIGAVEIS.get(feature, feature),
+            "nome_exibicao": nome_exibicao,
             "valor": float(valor),
             "direcao": "aumenta" if valor > 0 else "reduz",
         })
