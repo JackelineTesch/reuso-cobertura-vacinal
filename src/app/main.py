@@ -383,3 +383,33 @@ with col_direita:
         "💡 Use a roda do mouse para dar zoom, ou arraste para navegar. "
         "O mapa centraliza automaticamente no estado selecionado no filtro acima."
     )
+
+    st.divider()
+
+with st.expander("ℹ️ Sobre este projeto e metodologia"):
+    st.markdown("""
+**O que este projeto faz:** prevê, por município e vacina, o risco de queda na
+cobertura vacinal infantil abaixo da meta do PNI em 2026, e estima quantas
+crianças ficariam sem vacina se a tendência atual continuar — para ajudar a
+priorizar onde uma campanha extra teria maior efeito.
+
+**Fontes de dados** (todas oficiais, abertas): doses aplicadas (OpenDataSUS/PNI),
+nascidos vivos (SINASC), infraestrutura de saúde (CNES), PIB per capita (IBGE/SIDRA)
+e malha geográfica (IBGE).
+
+**Modelos:** Random Forest para classificação de risco (comparado com Regressão
+Logística e XGBoost; AUC-ROC de 0,82) e um segundo Random Forest de regressão
+para estimar o déficit de cobertura (erro médio de 9,4 pontos percentuais).
+As explicações de "por que esse score" usam SHAP, técnica de interpretabilidade
+de modelos.
+
+**Limitações conhecidas:**
+- Período de treino limitado a 2023–2025 (poucos anos de histórico).
+- Infraestrutura de saúde e PIB per capita são estáticos (não variam por ano).
+- Cobertura pode ultrapassar 100% para vacinas de dose múltipla, por usar
+  ano-calendário em vez de coorte de nascimento (metodologia clássica do PNI).
+- Estimativas devem ser lidas como indicativo para priorização, não certeza.
+
+Código-fonte completo e documentação detalhada de cada decisão técnica:
+[repositório no GitHub](https://github.com/SEU-USUARIO/reuso-cobertura-vacinal)
+    """)
