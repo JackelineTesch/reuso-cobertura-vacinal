@@ -39,6 +39,12 @@ def carregar_malha_geografica() -> dict:
     with open("data/processed/malha_municipios_brasil.geojson", encoding="utf-8") as f:
         return json.load(f)
 
+@st.cache_data
+def carregar_deficit() -> pd.DataFrame:
+    df = pd.read_csv("data/processed/deficit_2026.csv")
+    df["codigo_municipio_pni"] = df["codigo_municipio_pni"].astype(str)
+    return df
+
 
 @st.cache_data
 def carregar_nomes_municipios() -> dict:
@@ -129,6 +135,19 @@ def classificar_risco(probabilidade: float) -> tuple[str, str]:
     else:
         return "Alto", "🔴"
 
+def classificar_deficit(valor: int, serie_completa: pd.Series) -> str:
+    """Classifica o deficit de criancas sem vacina por posicao relativa
+    na distribuicao nacional (percentis), ja que o valor absoluto varia
+    muito dependendo do tamanho do municipio."""
+    p90 = serie_completa.quantile(0.90)
+    p50 = serie_completa.quantile(0.50)
+    if valor >= p90:
+        return "🔴"
+    elif valor >= p50:
+        return "🟡"
+    else:
+        return "🟢"
+
 
 # --- Corpo principal ---
 
@@ -139,13 +158,14 @@ st.caption(
 )
 
 previsoes = carregar_previsoes()
+deficit = carregar_deficit()
 malha = carregar_malha_geografica()
 nomes_municipios = carregar_nomes_municipios()
 
 # --- Estado inicial: caso de maior urgência nacional ---
 
 if "select_municipio" not in st.session_state:
-    caso_padrao = previsoes.nlargest(1, "indice_urgencia").iloc[0]
+    caso_padrao = deficit.nlargest(1, "criancas_sem_vacina_estimado").iloc[0]
     uf_padrao = nomes_municipios.get(caso_padrao["codigo_municipio_pni"], "").split(" - ")[-1]
     st.session_state["select_uf"] = uf_padrao
     st.session_state["select_municipio"] = caso_padrao["codigo_municipio_pni"]
@@ -163,49 +183,39 @@ def selecionar_da_tabela(codigo: str, vacina: str):
     st.session_state["select_municipio"] = codigo
     st.session_state["select_vacina"] = vacina
 
-col_urgencia, col_risco = st.columns(2)
+col_urgencia, col_risco = st.columns([3, 2])
 
 with col_urgencia:
-    st.markdown("**Por índice de urgência** *(risco × população impactada)*")
-    top5_urgencia = previsoes.nlargest(5, "indice_urgencia")[
-        ["codigo_municipio_pni", "vacina", "probabilidade_risco", "indice_urgencia"]
+    st.markdown("**Por número de crianças sem vacina (estimado)**")
+    top5_deficit = deficit.nlargest(5, "criancas_sem_vacina_estimado")[
+        ["codigo_municipio_pni", "vacina", "cobertura_prevista_2026", "criancas_sem_vacina_estimado"]
     ].reset_index(drop=True)
-    top5_urgencia["Município"] = top5_urgencia["codigo_municipio_pni"].map(nomes_municipios)
-    top5_urgencia["Risco individual"] = top5_urgencia["probabilidade_risco"].apply(lambda x: f"{x:.0%}")
-
-    maior_valor_nacional = previsoes["indice_urgencia"].max()
+    top5_deficit["Município"] = top5_deficit["codigo_municipio_pni"].map(nomes_municipios)
+    top5_deficit["Cobertura"] = top5_deficit["cobertura_prevista_2026"].apply(lambda x: f"{x:.0%}")
+    top5_deficit["Sem vacina"] = top5_deficit["criancas_sem_vacina_estimado"].apply(
+        lambda x: f"{classificar_deficit(x, deficit['criancas_sem_vacina_estimado'])} {x:,.0f}".replace(",", ".")
+    )
 
     evento_urgencia = st.dataframe(
-        top5_urgencia[["Município", "vacina", "Risco individual", "indice_urgencia"]].rename(
-            columns={"vacina": "Vacina", "indice_urgencia": "Crianças em risco (estimado)"}
-        ),
+        top5_deficit[["Município", "vacina", "Cobertura", "Sem vacina"]].rename(columns={"vacina": "Vacina"}),
         hide_index=True,
         use_container_width=True,
         on_select="rerun",
         selection_mode="single-row",
         key="tabela_urgencia",
-        column_config={
-            "Crianças em risco (estimado)": st.column_config.ProgressColumn(
-                "Crianças em risco (estimado)",
-                min_value=0,
-                max_value=maior_valor_nacional,
-                format="%d",
-            )
-        },
     )
     if evento_urgencia.selection.rows:
         linha_idx = evento_urgencia.selection.rows[0]
         selecionar_da_tabela(
-            top5_urgencia.loc[linha_idx, "codigo_municipio_pni"],
-            top5_urgencia.loc[linha_idx, "vacina"],
+            top5_deficit.loc[linha_idx, "codigo_municipio_pni"],
+            top5_deficit.loc[linha_idx, "vacina"],
         )
 
 st.caption(
-    "💡 **Crianças em risco (estimado)** = risco individual × número de nascidos vivos — "
-    "uma forma de ponderar a população pelo score de risco do município (não é uma contagem "
-    "exata garantida, já que o modelo classifica o município como um todo, não cada criança "
-    "individualmente). É por isso que municípios com risco individual menor podem aparecer à "
-    "frente de outros com risco maior: o volume populacional pondera o resultado."
+    "💡 **Crianças sem vacina (estimado)** = déficit de cobertura até a meta × nascidos vivos, "
+    "calculado por um modelo de regressão dedicado (não o mesmo modelo do score de risco). "
+    "Margem de erro média: ±9,4 pontos percentuais de cobertura — trate como estimativa, não "
+    "contagem exata."
 )
 
 with col_risco:

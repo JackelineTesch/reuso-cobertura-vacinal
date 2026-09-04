@@ -200,3 +200,10 @@ do treino, removendo distorção conhecida (ano-calendário vs. coorte de
 nascimento — ver decisão #13), o que reduziu o erro médio (MAE) de 20,5%
 para 9,4 pontos percentuais. Essa margem de erro deve ser comunicada ao
 lado do número no app, para não passar falsa precisão.
+
+## 21. Tabela de prioridade migrada de índice abstrato para número concreto
+
+O "índice de urgência" (risco × população, um número sem escala intuitiva)
+foi substituído no app pelo déficit de crianças sem vacina, calculado pelo
+modelo de regressão (decisão #20) — mais interpretável para o usuário final
+e mais alinhado ao critério de "apresentação e usabilidade" do edital.
