@@ -2,6 +2,8 @@
 
 Projeto de reúso de dados abertos submetido ao **2º Concurso de Reúso de Dados Abertos da CGU** (Edital CGU nº 46/2026).
 
+🔗 **App ao vivo:** https://radar-risco-vacinal.streamlit.app/ 
+
 ## O problema
 
 O Brasil vem apresentando queda sustentada na cobertura vacinal infantil desde 2019, com forte
