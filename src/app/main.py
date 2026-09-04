@@ -20,7 +20,7 @@ from src.models.explicar_shap import carregar_explainer, explicar_caso
 # --- 1. Configuracao da pagina ---
 st.set_page_config(
     page_title="Radar de Risco Vacinal",
-    page_icon="💉",
+    page_icon="assets/radar-risco-vacinal-logo-512.png",
     layout="wide",
 )
 
