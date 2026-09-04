@@ -24,6 +24,17 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown("""
+<style>
+    /* Aumenta o contraste de textos secundarios (captions), que por
+       padrao ficam muito claros no tema light - importante para
+       acessibilidade (WCAG) */
+    [data-testid="stCaptionContainer"], .stCaption, small {
+        color: #4A4A4A !important;
+        opacity: 1 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- 2. Carregamento de dados, com cache ---
 
@@ -363,12 +374,12 @@ with col_direita:
         locations="codarea",
         featureidkey="properties.codarea",
         color="probabilidade_risco",
-        color_continuous_scale=["#e0e0e0", "#f4a261", "#e63946", "#9d0208"],
+        color_continuous_scale=["#a8c5e0", "#f4a261", "#e63946", "#9d0208"],
         range_color=(0, 1),
-        map_style="carto-darkmatter",
+        map_style="carto-voyager",
         zoom=zoom,
         center=centro,
-        opacity=0.7,
+        opacity=0.55,
         labels={"probabilidade_risco": "Risco previsto"},
         hover_name="nome_municipio",
         hover_data={"codarea": False},
