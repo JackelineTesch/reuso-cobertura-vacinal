@@ -47,7 +47,7 @@ def carregar_previsoes() -> pd.DataFrame:
 
 @st.cache_data
 def carregar_malha_geografica() -> dict:
-    with open("data/processed/malha_municipios_brasil.geojson", encoding="utf-8") as f:
+    with open("data/processed/malha_municipios_brasil_simplificada.geojson", encoding="utf-8") as f:
         return json.load(f)
 
 @st.cache_data

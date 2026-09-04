@@ -17,7 +17,7 @@ data/processed/*
 # (mesmo dentro de data/raw|processed, que sao ignorados por padrao)
 !data/processed/previsoes_risco_2026.csv
 !data/processed/deficit_2026.csv
-!data/processed/malha_municipios_brasil.geojson
+!data/processed/malha_municipios_brasil_simplificada.geojson
 !data/processed/modelo_final.joblib
 !data/processed/colunas_features.joblib
 !data/raw/ibge_populacao_2023_2025.csv
